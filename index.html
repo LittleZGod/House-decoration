@@ -1,0 +1,391 @@
+<!--
+  我的梦幻小屋 · 房间装扮小游戏（可部署单文件版）
+  ============================================
+  部署目录结构（index.html 与 images 文件夹同级）：
+    your-project/
+    ├── index.html        ← 本文件
+    └── images/
+        ├── manifest.txt  ← 每行一个图片文件名（见下方生成方法）
+        ├── 床.png
+        ├── 沙发.png
+        └── ...其它图片
+
+  生成 manifest.txt（Mac 终端，cd 到 images 文件夹后执行一行）：
+    ls *.png *.jpg *.jpeg *.webp 2>/dev/null > manifest.txt
+  （Windows PowerShell：  Get-ChildItem -Name *.png,*.jpg,*.jpeg,*.webp > manifest.txt ）
+
+  建议：图片文件名用「床」「沙发」「台灯」这类含中文关键词的名字，程序会自动归类并设好大小。
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>我的梦幻小屋</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh;
+    background: linear-gradient(160deg,#fff0f6,#fce7f3 40%,#ede9fe); user-select: none; touch-action: manipulation; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px;
+    background: rgba(255,255,255,.7); backdrop-filter: blur(6px); box-shadow:0 1px 6px rgba(0,0,0,.05); z-index:20; }
+  .title { font-weight:700; color:#db2777; font-size:18px; }
+  .pill { border:none; cursor:pointer; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:600; transition:.15s; }
+  .pill:active { transform: scale(.95); }
+  .pink { background:#fbcfe8; color:#be185d; } .pink:hover{ background:#f9a8d4; }
+  .rose { background:#ffe4e6; color:#e11d48; } .rose:hover{ background:#fecdd3; }
+  #themes { display:none; gap:8px; padding:8px 16px; background:rgba(255,255,255,.6); overflow-x:auto; z-index:20; }
+  #themes button { border:none; cursor:pointer; display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px;
+    font-size:13px; white-space:nowrap; background:#fff; color:#555; }
+  #themes button.on { background:#ec4899; color:#fff; }
+  #themes .dot { width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,255,255,.7); }
+  #room { position:relative; flex:1; overflow:hidden; margin:8px; border-radius:18px; box-shadow: inset 0 2px 10px rgba(0,0,0,.08); touch-action:none; }
+  #bg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:flex; align-items:center; justify-content:center; background:#fff0f6; }
+  #layer { position:absolute; inset:0; }
+  .obj { position:absolute; padding:4px; }
+  .obj.sel { border-radius:12px; outline:2px solid #f472b6; background:rgba(255,255,255,.3); }
+  .obj img { width:100%; height:auto; display:block; pointer-events:none; filter: drop-shadow(0 4px 4px rgba(0,0,0,.12)); }
+  .obj .ph { width:100%; aspect-ratio:1; border-radius:10px; background:rgba(251,207,232,.6); border:1px dashed #f9a8d4;
+    display:flex; align-items:center; justify-content:center; color:#f472b6; }
+  #hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; padding:24px; }
+  #hint p { color:#ec4899; text-align:center; font-size:14px; background:rgba(255,255,255,.55); border-radius:16px; padding:12px 20px; box-shadow:0 1px 6px rgba(0,0,0,.05); }
+  #ctrls { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:30; display:none; flex-wrap:wrap; justify-content:center;
+    gap:6px; padding:6px; border-radius:16px; background:rgba(255,255,255,.88); backdrop-filter:blur(6px); box-shadow:0 6px 18px rgba(0,0,0,.15); max-width:96%; }
+  #ctrls button { border:none; cursor:pointer; width:44px; height:44px; border-radius:12px; font-size:18px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); transition:.12s; }
+  #ctrls button:hover{ background:#fdf2f8; } #ctrls button:active{ transform:scale(.9); }
+  #ctrls button.del{ background:#ffe4e6; } #ctrls button.del:hover{ background:#fecdd3; }
+  #tabs { display:flex; gap:8px; padding:4px 12px 0; overflow-x:auto; z-index:10; }
+  #tabs button { border:none; cursor:pointer; display:flex; align-items:center; gap:4px; padding:6px 12px; border-radius:12px 12px 0 0;
+    font-size:13px; white-space:nowrap; background:rgba(255,255,255,.5); color:#777; }
+  #tabs button.on { background:#fff; color:#db2777; font-weight:600; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+  #tabs .count { font-size:10px; background:#fbcfe8; color:#be185d; border-radius:999px; padding:0 6px; }
+  #dock { background:rgba(255,255,255,.88); backdrop-filter:blur(6px); padding:12px; z-index:10; box-shadow:0 -4px 12px rgba(0,0,0,.04); touch-action:pan-y; }
+  #pal { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-height:130px; overflow-y:auto; }
+  #pal .thumb { border:none; cursor:grab; width:56px; height:56px; padding:4px; border-radius:12px; background:#fdf2f8; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; touch-action:none; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:.12s; }
+  #pal .thumb:active{ transform:scale(.9); }
+  #pal .thumb img { max-width:100%; max-height:100%; pointer-events:none; }
+  #empty { display:flex; align-items:center; justify-content:center; min-height:90px; text-align:center; font-size:13px; color:#9ca3af;
+    border:2px dashed #fbcfe8; border-radius:12px; background:rgba(253,242,248,.4); padding:14px; }
+  .tip { text-align:center; font-size:11px; color:#9ca3af; margin-top:6px; }
+</style>
+
+<div id="app">
+  <header>
+    <div class="title">🏡 我的梦幻小屋</div>
+    <div style="display:flex; gap:8px;">
+      <button class="pill pink" id="btnTheme">🎨 主题</button>
+      <button class="pill rose" id="btnClear">🧹 清空</button>
+    </div>
+  </header>
+
+  <div id="themes"></div>
+
+  <div id="room">
+    <div id="bg"></div>
+    <div id="layer"></div>
+    <div id="hint"><p>✨ 从下方选择家具拖入房间吧</p></div>
+    <div id="ctrls"></div>
+  </div>
+
+  <div id="tabs"></div>
+
+  <div id="dock">
+    <div id="palWrap"></div>
+    <div class="tip">📱 单指拖动 · 双指捏合缩放/旋转　💻 选中物品用按钮微调</div>
+  </div>
+</div>
+
+<script>
+const THEMES = [
+  { name:"奶油粉", wallL:"#f4bccf", wallR:"#ffd6e5", floor:"#e7c2a4", ceil:"#fff1f6", base:"#e09bb6", rug:"#f3aac3" },
+  { name:"薄荷绿", wallL:"#b6dfca", wallR:"#d6f0e2", floor:"#d8c3a5", ceil:"#eefaf3", base:"#92cbb0", rug:"#a3d9c1" },
+  { name:"天空蓝", wallL:"#b8d4f0", wallR:"#d6e8fb", floor:"#d9c7b0", ceil:"#eef6ff", base:"#93bbe6", rug:"#a6cbf0" },
+  { name:"丁香紫", wallL:"#cdbcec", wallR:"#e6dbfb", floor:"#d8c8bd", ceil:"#f4eeff", base:"#b29ce0", rug:"#c1aeea" },
+  { name:"暖阳黄", wallL:"#f3dca0", wallR:"#fcefc4", floor:"#e3c9a3", ceil:"#fff9e8", base:"#e6c674", rug:"#efd385" },
+  { name:"焦糖奶茶", wallL:"#e0c8b0", wallR:"#f0e0cc", floor:"#cdb088", ceil:"#f8f0e6", base:"#cdaf90", rug:"#d8bfa0" },
+];
+const CATS = [
+  { id:"all", name:"全部", icon:"📦" },
+  { id:"furniture", name:"家具", icon:"🛋️" },
+  { id:"plants", name:"绿植", icon:"🪴" },
+  { id:"wall", name:"墙面", icon:"🖼️" },
+  { id:"lights", name:"灯具", icon:"💡" },
+  { id:"cute", name:"萌物", icon:"🧸" },
+];
+function classify(name){
+  const h=(...k)=>k.some(x=>name.includes(x));
+  if(h("地毯","地垫","脚垫","毯")) return {catId:"furniture",base:30};
+  if(h("浴缸")) return {catId:"furniture",base:24};
+  if(h("双层床","上下床","高低床")) return {catId:"furniture",base:22};
+  if(h("婴儿床","宝宝床")) return {catId:"furniture",base:18};
+  if(h("双人床","大床","床")) return {catId:"furniture",base:24};
+  if(h("懒人沙发","豆袋")) return {catId:"furniture",base:16};
+  if(h("单人沙发","沙发椅","扶手椅")) return {catId:"furniture",base:16};
+  if(h("沙发")) return {catId:"furniture",base:23};
+  if(h("电视柜")) return {catId:"furniture",base:22};
+  if(h("梳妆台","化妆台")) return {catId:"furniture",base:17};
+  if(h("书架","书柜")) return {catId:"furniture",base:18};
+  if(h("衣柜","橱柜","橱")) return {catId:"furniture",base:18};
+  if(h("床头柜")) return {catId:"furniture",base:13};
+  if(h("矮柜","边柜","斗柜","柜")) return {catId:"furniture",base:16};
+  if(h("茶几")) return {catId:"furniture",base:18};
+  if(h("书桌","餐桌","桌")) return {catId:"furniture",base:17};
+  if(h("屏风")) return {catId:"furniture",base:20};
+  if(h("衣帽架","挂衣架")) return {catId:"furniture",base:12};
+  if(h("洗手台","洗手盆","水槽","台盆")) return {catId:"furniture",base:16};
+  if(h("马桶","坐便")) return {catId:"furniture",base:12};
+  if(h("洗衣机")) return {catId:"furniture",base:15};
+  if(h("冰箱")) return {catId:"furniture",base:16};
+  if(h("微波炉","烤箱","灶台","灶")) return {catId:"furniture",base:14};
+  if(h("电视","电视机")) return {catId:"furniture",base:15};
+  if(h("穿衣镜","全身镜","立镜")) return {catId:"furniture",base:13};
+  if(h("椅","凳")) return {catId:"furniture",base:11};
+  if(h("门")) return {catId:"furniture",base:17};
+  if(h("空调")) return {catId:"wall",base:16};
+  if(h("窗帘")) return {catId:"wall",base:16};
+  if(h("窗")) return {catId:"wall",base:15};
+  if(h("串灯","彩灯","灯串")) return {catId:"lights",base:24};
+  if(h("落地灯")) return {catId:"lights",base:11};
+  if(h("吊灯")) return {catId:"lights",base:12};
+  if(h("台灯","壁灯","灯")) return {catId:"lights",base:9};
+  if(h("仙人掌","盆栽","植物","绿植","花","树","郁金香")) return {catId:"plants",base:11};
+  if(h("挂画","相框","画框","海报","壁画","画")) return {catId:"wall",base:12};
+  if(h("镜")) return {catId:"wall",base:11};
+  if(h("挂钟","时钟","钟")) return {catId:"wall",base:8};
+  if(h("吉他","乐器")) return {catId:"cute",base:12};
+  if(h("书本","书")) return {catId:"cute",base:9};
+  if(h("泰迪","玩偶","娃娃","公仔","熊","兔","抱枕","枕","坐垫","垫")) return {catId:"cute",base:11};
+  return {catId:"cute",base:10};
+}
+const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const clamp=v=>Math.max(3,Math.min(97,v));
+const distOf=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const angOf=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+
+let assets=[], items=[], themeIdx=0, cat="all", selectedId=null, zCounter=1;
+let dragInfo=null, gesture=null;
+const itemEls=new Map();
+
+const $=id=>document.getElementById(id);
+const room=$("room"), bg=$("bg"), layer=$("layer"), hint=$("hint"), ctrls=$("ctrls"),
+      themesBox=$("themes"), tabsBox=$("tabs"), palWrap=$("palWrap");
+
+/* ---------- 持久化（部署到自己网站后 localStorage 正常工作） ---------- */
+function save(){ try{ localStorage.setItem("dream-room", JSON.stringify({ items: items.map(i=>({...i,url:undefined})), themeIdx })); }catch(e){} }
+function loadSaved(){ try{ const s=JSON.parse(localStorage.getItem("dream-room")); if(s){ items=(s.items||[]).filter(i=>i&&i.name); themeIdx=s.themeIdx||0; zCounter=items.reduce((a,b)=>Math.max(a,b.z||1),1);} }catch(e){} }
+
+/* ---------- 房间背景（对称墙角 90°，地板加大） ---------- */
+function renderBg(){
+  const t=THEMES[themeIdx];
+  bg.innerHTML=`<svg viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%">
+    <defs>
+      <linearGradient id="lg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${t.wallL}"/><stop offset="1" stop-color="${t.wallR}" stop-opacity=".9"/></linearGradient>
+      <linearGradient id="rgd" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${t.wallR}" stop-opacity=".9"/><stop offset="1" stop-color="${t.wallL}"/></linearGradient>
+      <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.floor}"/><stop offset="1" stop-color="${t.floor}" stop-opacity=".75"/></linearGradient>
+    </defs>
+    <rect x="0" y="0" width="1000" height="800" fill="${t.ceil}"/>
+    <polygon points="0,0 1000,0 1000,70 500,140 0,70" fill="${t.ceil}"/>
+    <polygon points="40,70 500,140 500,440 40,540" fill="url(#lg)"/>
+    <polygon points="960,70 500,140 500,440 960,540" fill="url(#rgd)"/>
+    <polygon points="40,540 500,440 960,540 960,800 40,800" fill="url(#fg)"/>
+    <ellipse cx="500" cy="660" rx="380" ry="105" fill="${t.rug}" opacity=".5"/>
+    <ellipse cx="500" cy="660" rx="285" ry="75" fill="${t.rug}" opacity=".4"/>
+    <polygon points="40,540 500,440 500,452 40,552" fill="${t.base}" opacity=".8"/>
+    <polygon points="500,440 960,540 960,552 500,452" fill="${t.base}" opacity=".7"/>
+    <line x1="500" y1="140" x2="500" y2="440" stroke="#000" stroke-opacity=".07" stroke-width="3"/>
+    <line x1="40" y1="70" x2="500" y2="140" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>
+    <line x1="960" y1="70" x2="500" y2="140" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>
+    <polygon points="114,161 252,173 252,337 114,347" fill="#cdeafd" opacity=".95"/>
+    <polygon points="114,161 252,173 252,337 114,347" fill="none" stroke="#fff" stroke-width="6" stroke-opacity=".85"/>
+    <line x1="183" y1="167" x2="183" y2="342" stroke="#fff" stroke-width="4" stroke-opacity=".85"/>
+    <line x1="114" y1="254" x2="252" y2="255" stroke="#fff" stroke-width="4" stroke-opacity=".85"/>
+  </svg>`;
+}
+
+/* ---------- 主题选择 ---------- */
+function renderThemes(){
+  themesBox.innerHTML="";
+  THEMES.forEach((t,i)=>{
+    const b=document.createElement("button");
+    if(i===themeIdx) b.className="on";
+    b.innerHTML=`<span class="dot" style="background:${t.wallR}"></span>${t.name}`;
+    b.onclick=()=>{ themeIdx=i; renderBg(); renderThemes(); save(); };
+    themesBox.appendChild(b);
+  });
+}
+$("btnTheme").onclick=()=>{ themesBox.style.display = themesBox.style.display==="flex"?"none":"flex"; };
+$("btnClear").onclick=()=>{ if(confirm("确定要清空整个房间吗？")){ items=[]; selectedId=null; renderItems(); save(); } };
+
+/* ---------- 坐标换算 ---------- */
+function toPct(cx,cy){ const r=room.getBoundingClientRect();
+  return { x:(cx-r.left)/r.width*100, y:(cy-r.top)/r.height*100, inside: cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom }; }
+
+/* ---------- 渲染已放置物品 ---------- */
+function updateItemStyle(it){
+  const el=itemEls.get(it.id); if(!el) return;
+  el.style.left=it.x+"%"; el.style.top=it.y+"%";
+  el.style.width=(it.base*it.scale)+"%";
+  el.style.transform=`translate(-50%,-50%) rotate(${it.rot}deg) scaleX(${it.flip})`;
+  el.style.zIndex=it.z;
+}
+function renderItems(){
+  itemEls.clear(); layer.innerHTML="";
+  items.forEach(it=>{
+    const el=document.createElement("div");
+    el.className="obj"+(it.id===selectedId?" sel":"");
+    el.style.touchAction="none"; el.style.cursor="grab";
+    el.innerHTML = it.url ? `<img src="${it.url}" draggable="false">` : `<div class="ph">📷</div>`;
+    attachGesture(el, it);
+    layer.appendChild(el); itemEls.set(it.id, el);
+    updateItemStyle(it);
+  });
+  hint.style.display = items.length? "none":"flex";
+  renderCtrls();
+}
+
+/* ---------- 单指拖动 + 双指缩放/旋转 ---------- */
+function attachGesture(el, item){
+  el.addEventListener("pointerdown",(e)=>{
+    e.stopPropagation();
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    selectItem(item.id);
+    item.z=++zCounter; updateItemStyle(item);
+    if(!gesture || gesture.id!==item.id) gesture={ id:item.id, pointers:new Map() };
+    gesture.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    baseline(item.id);
+  });
+  el.addEventListener("pointermove",(e)=>{
+    if(!gesture||!gesture.pointers.has(e.pointerId)) return;
+    gesture.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const pts=[...gesture.pointers.values()];
+    const it=items.find(i=>i.id===gesture.id); if(!it) return;
+    if(gesture.mode==="drag"&&pts.length===1){
+      const p=toPct(pts[0].x,pts[0].y);
+      it.x=clamp(p.x+gesture.dx); it.y=clamp(p.y+gesture.dy); updateItemStyle(it);
+    }else if(gesture.mode==="pinch"&&pts.length>=2){
+      const[a,b]=pts;
+      it.scale=Math.max(.25,Math.min(5, gesture.s0*(distOf(a,b)/gesture.d0)));
+      it.rot=gesture.r0+(angOf(a,b)-gesture.a0);
+      const c=toPct((a.x+b.x)/2,(a.y+b.y)/2);
+      it.x=clamp(c.x+gesture.cdx); it.y=clamp(c.y+gesture.cdy); updateItemStyle(it);
+    }
+  });
+  const up=(e)=>{ if(!gesture) return; gesture.pointers.delete(e.pointerId);
+    try{ el.releasePointerCapture(e.pointerId);}catch(_){}
+    if(gesture.pointers.size===0){ gesture=null; save(); } else baseline(gesture.id); };
+  el.addEventListener("pointerup",up); el.addEventListener("pointercancel",up);
+}
+function baseline(id){
+  if(!gesture) return; const it=items.find(i=>i.id===id); if(!it) return;
+  const pts=[...gesture.pointers.values()];
+  if(pts.length===1){ const p=toPct(pts[0].x,pts[0].y); gesture.mode="drag"; gesture.dx=it.x-p.x; gesture.dy=it.y-p.y; }
+  else if(pts.length>=2){ const[a,b]=pts; gesture.mode="pinch"; gesture.d0=distOf(a,b)||1; gesture.a0=angOf(a,b);
+    gesture.s0=it.scale; gesture.r0=it.rot; const c=toPct((a.x+b.x)/2,(a.y+b.y)/2); gesture.cdx=it.x-c.x; gesture.cdy=it.y-c.y; }
+}
+room.addEventListener("pointerdown",()=>{ selectItem(null); });
+
+function selectItem(id){
+  selectedId=id;
+  itemEls.forEach((el,iid)=> el.classList.toggle("sel", iid===id));
+  renderCtrls();
+}
+
+/* ---------- 选中工具条 ---------- */
+function renderCtrls(){
+  const it=items.find(i=>i.id===selectedId);
+  if(!it){ ctrls.style.display="none"; return; }
+  ctrls.style.display="flex";
+  const mk=(icon,cls,fn)=>{ const b=document.createElement("button"); b.textContent=icon; if(cls)b.className=cls;
+    b.onclick=(e)=>{ e.stopPropagation(); fn(); }; return b; };
+  ctrls.innerHTML="";
+  ctrls.append(
+    mk("➕","",()=>{ it.scale=Math.min(5,it.scale+.12); updateItemStyle(it); save(); }),
+    mk("➖","",()=>{ it.scale=Math.max(.25,it.scale-.12); updateItemStyle(it); save(); }),
+    mk("↺","",()=>{ it.rot-=15; updateItemStyle(it); save(); }),
+    mk("↻","",()=>{ it.rot+=15; updateItemStyle(it); save(); }),
+    mk("🔄","",()=>{ it.flip*=-1; updateItemStyle(it); save(); }),
+    mk("⬆️","",()=>{ it.z=++zCounter; updateItemStyle(it); save(); }),
+    mk("⬇️","",()=>{ const mn=Math.min(...items.map(p=>p.z||1)); it.z=mn-1; updateItemStyle(it); save(); }),
+    mk("⧉","",()=>{ const c={...it,id:genId(),x:clamp(it.x+6),y:clamp(it.y+6),z:++zCounter}; items.push(c); selectedId=c.id; renderItems(); save(); }),
+    mk("🗑️","del",()=>{ items=items.filter(p=>p.id!==selectedId); selectedId=null; renderItems(); save(); }),
+  );
+}
+ctrls.addEventListener("pointerdown",(e)=>e.stopPropagation());
+
+/* ---------- 分类标签 + 工具栏 ---------- */
+function renderTabs(){
+  tabsBox.innerHTML="";
+  CATS.forEach(c=>{
+    const b=document.createElement("button");
+    if(c.id===cat) b.className="on";
+    const n = c.id==="all"?0:assets.filter(a=>a.catId===c.id).length;
+    b.innerHTML=`<span>${c.icon}</span>${c.name}`+(n?`<span class="count">${n}</span>`:"");
+    b.onclick=()=>{ cat=c.id; renderTabs(); renderPalette(); };
+    tabsBox.appendChild(b);
+  });
+}
+function renderPalette(){
+  const shown = cat==="all"?assets:assets.filter(a=>a.catId===cat);
+  if(assets.length===0){
+    palWrap.innerHTML=`<div id="empty">还没有图片～<br>请确认 images 文件夹中有素材并已生成 manifest.txt</div>`; return;
+  }
+  if(shown.length===0){ palWrap.innerHTML=`<div id="empty">这个分类暂时没有图，去「全部」看看吧</div>`; return; }
+  const wrap=document.createElement("div"); wrap.id="pal";
+  shown.forEach(a=>{
+    const b=document.createElement("button"); b.className="thumb"; b.title=a.label;
+    b.innerHTML=`<img src="${a.url}" draggable="false">`;
+    b.addEventListener("pointerdown",(e)=>startPaletteDrag(e,a));
+    wrap.appendChild(b);
+  });
+  palWrap.innerHTML=""; palWrap.appendChild(wrap);
+}
+function startPaletteDrag(e,a){
+  e.preventDefault();
+  const p=toPct(e.clientX,e.clientY);
+  const it={ id:genId(), name:a.name, url:a.url, base:a.base, x:clamp(p.x), y:clamp(p.y), scale:1, rot:0, flip:1, z:++zCounter };
+  items.push(it); selectItem(it.id); renderItems();
+  dragInfo={ id:it.id, entered:p.inside };
+  window.addEventListener("pointermove",palMove); window.addEventListener("pointerup",palUp);
+}
+function palMove(e){ if(!dragInfo) return; const p=toPct(e.clientX,e.clientY); if(p.inside) dragInfo.entered=true;
+  const it=items.find(i=>i.id===dragInfo.id); if(it){ it.x=clamp(p.x); it.y=clamp(p.y); updateItemStyle(it); } }
+function palUp(){ if(dragInfo){ const it=items.find(i=>i.id===dragInfo.id); if(it&&!dragInfo.entered){ it.x=50; it.y=66; updateItemStyle(it); } }
+  dragInfo=null; window.removeEventListener("pointermove",palMove); window.removeEventListener("pointerup",palUp); save(); }
+
+/* ---------- 接入素材 ---------- */
+function setAssets(list){
+  assets=list.sort((a,b)=>a.catId.localeCompare(b.catId));
+  const map=Object.fromEntries(assets.map(a=>[a.name,a.url]));
+  items.forEach(it=>{ if(it.name&&map[it.name]) it.url=map[it.name]; });
+  renderTabs(); renderPalette(); renderItems();
+}
+
+/* ---------- 内嵌素材列表（兼容 file:// 和 GitHub Pages） ---------- */
+const MANIFEST=[
+"串灯_1.png","书架_1.png","书桌_1.png","冰箱_1.png","台灯_1.png","吉他_1.png","吊灯_1.png","圆凳_1.png","地毯_1.png","屏风_1.png",
+"抱枕_1.png","挂钟_1.png","浴缸_1.png","烤箱_1.png","空调_1.png","衣柜_1.png","马桶_1.png",
+"串灯_2.png","书架_2.png","书桌_2.png","冰箱_2.png","台灯_2.png","吉他_2.png","吊灯_2.png","圆凳_2.png","地毯_2.png","屏风_2.png",
+"抱枕_2.png","挂钟_2.png","浴缸_2.png","烤箱_2.png","空调_2.png","衣柜_2.png","马桶_2.png",
+"电视柜B_1.png","电视柜B_2.png",
+"五斗柜_1.png","仙人掌_1.png","单人床_1.png","双人床_1.png","双层床_1.png","婴儿床_1.png","床头柜_1.png","木餐椅_1.png","梳妆台_1.png",
+"泰迪熊_1.png","洗衣机_1.png","电视柜_1.png","矮茶几_1.png","穿衣镜_1.png","落地灯_1.png","衣帽架_1.png","装饰画_1.png","豆袋椅_1.png",
+"郁金香_1.png","长茶几_1.png","龟背竹_1.png",
+"五斗柜_2.png","仙人掌_2.png","单人床_2.png","双人床_2.png","双层床_2.png","婴儿床_2.png","床头柜_2.png","木餐椅_2.png","梳妆台_2.png",
+"泰迪熊_2.png","洗衣机_2.png","电视柜_2.png","矮茶几_2.png","穿衣镜_2.png","落地灯_2.png","衣帽架_2.png","装饰画_2.png","豆袋椅_2.png",
+"郁金香_2.png","长茶几_2.png","龟背竹_2.png",
+"兔子玩偶_1.png","双人沙发_1.png","圆叶盆栽_1.png","微波炉柜_1.png","矮电视柜_1.png","绿垫木椅_1.png",
+"兔子玩偶_2.png","双人沙发_2.png","圆叶盆栽_2.png","微波炉柜_2.png","矮电视柜_2.png","绿垫木椅_2.png",
+"厨房水槽柜_1.png","咖啡杯与书_1.png","开放置物架_1.png","浴室盥洗台_1.png","粉色靠背椅_1.png","绿色扶手椅_1.png",
+"厨房水槽柜_2.png","咖啡杯与书_2.png","开放置物架_2.png","浴室盥洗台_2.png","粉色靠背椅_2.png","绿色扶手椅_2.png",
+"米色单人沙发_1.png","黄格双人沙发_1.png","米色单人沙发_2.png","黄格双人沙发_2.png"
+];
+function loadFromManifest(){
+  const list=MANIFEST.map(n=>{ const label=n.replace(/\.[^.]+$/,""); const {catId,base}=classify(label);
+    return { name:n, label, url:"images/"+encodeURIComponent(n), catId, base }; });
+  setAssets(list);
+}
+
+
+/* ---------- 启动 ---------- */
+loadSaved();
+renderBg(); renderThemes(); renderTabs(); renderPalette(); renderItems();
+loadFromManifest();
+</script>
