@@ -59,7 +59,7 @@
   #dock { background:rgba(255,255,255,.88); backdrop-filter:blur(6px); padding:12px; z-index:10; box-shadow:0 -4px 12px rgba(0,0,0,.04); touch-action:pan-y; }
   #pal { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-height:130px; overflow-y:auto; }
   #pal .thumb { border:none; cursor:grab; width:56px; height:56px; padding:4px; border-radius:12px; background:#fdf2f8; overflow:hidden;
-    display:flex; align-items:center; justify-content:center; touch-action:none; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:.12s; }
+    display:flex; align-items:center; justify-content:center; touch-action:pan-y; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:.12s; }
   #pal .thumb:active{ transform:scale(.9); }
   #pal .thumb img { max-width:100%; max-height:100%; pointer-events:none; }
   #empty { display:flex; align-items:center; justify-content:center; min-height:90px; text-align:center; font-size:13px; color:#9ca3af;
@@ -337,18 +337,60 @@ function renderPalette(){
   });
   palWrap.innerHTML=""; palWrap.appendChild(wrap);
 }
+const DRAG_THRESHOLD=8;
 function startPaletteDrag(e,a){
-  e.preventDefault();
-  const p=toPct(e.clientX,e.clientY);
-  const it={ id:genId(), name:a.name, url:a.url, base:a.base, x:clamp(p.x), y:clamp(p.y), scale:1, rot:0, flip:1, z:++zCounter };
-  items.push(it); selectItem(it.id); renderItems();
-  dragInfo={ id:it.id, entered:p.inside };
-  window.addEventListener("pointermove",palMove); window.addEventListener("pointerup",palUp);
+  const startX=e.clientX, startY=e.clientY;
+  let started=false;
+  const spawn=(cx,cy)=>{
+    const p=toPct(cx,cy);
+    const it={ id:genId(), name:a.name, url:a.url, base:a.base, x:clamp(p.x), y:clamp(p.y), scale:1, rot:0, flip:1, z:++zCounter };
+    items.push(it); selectItem(it.id); renderItems();
+    dragInfo={ id:it.id, entered:p.inside };
+  };
+  const onMove=(ev)=>{
+    if(!started){
+      if(Math.hypot(ev.clientX-startX, ev.clientY-startY) < DRAG_THRESHOLD) return;
+      started=true;
+      ev.preventDefault && ev.preventDefault();
+      spawn(ev.clientX, ev.clientY);
+    } else if(dragInfo){
+      const p=toPct(ev.clientX, ev.clientY);
+      if(p.inside) dragInfo.entered=true;
+      const it=items.find(i=>i.id===dragInfo.id);
+      if(it){ it.x=clamp(p.x); it.y=clamp(p.y); updateItemStyle(it); }
+    }
+  };
+  const cleanup=()=>{
+    window.removeEventListener("pointermove",onMove);
+    window.removeEventListener("pointerup",onUp);
+    window.removeEventListener("pointercancel",onCancel);
+  };
+  const onUp=(ev)=>{
+    cleanup();
+    if(!started){
+      // tap → place at default position so user can still tap to add
+      const it={ id:genId(), name:a.name, url:a.url, base:a.base, x:50, y:66, scale:1, rot:0, flip:1, z:++zCounter };
+      items.push(it); selectItem(it.id); renderItems(); save();
+    } else if(dragInfo){
+      const it=items.find(i=>i.id===dragInfo.id);
+      if(it && !dragInfo.entered){ it.x=50; it.y=66; updateItemStyle(it); }
+      dragInfo=null; save();
+    }
+  };
+  const onCancel=()=>{
+    // browser took over for scrolling — abort everything
+    cleanup();
+    if(started && dragInfo){
+      items=items.filter(i=>i.id!==dragInfo.id);
+      selectedId=null;
+      dragInfo=null;
+      renderItems();
+    }
+  };
+  window.addEventListener("pointermove",onMove);
+  window.addEventListener("pointerup",onUp);
+  window.addEventListener("pointercancel",onCancel);
 }
-function palMove(e){ if(!dragInfo) return; const p=toPct(e.clientX,e.clientY); if(p.inside) dragInfo.entered=true;
-  const it=items.find(i=>i.id===dragInfo.id); if(it){ it.x=clamp(p.x); it.y=clamp(p.y); updateItemStyle(it); } }
-function palUp(){ if(dragInfo){ const it=items.find(i=>i.id===dragInfo.id); if(it&&!dragInfo.entered){ it.x=50; it.y=66; updateItemStyle(it); } }
-  dragInfo=null; window.removeEventListener("pointermove",palMove); window.removeEventListener("pointerup",palUp); save(); }
 
 /* ---------- 接入素材 ---------- */
 function setAssets(list){
