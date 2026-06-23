@@ -211,7 +211,8 @@ function renderThemes(){
     themesBox.appendChild(b);
   });
 }
-$("btnTheme").onclick=()=>{ themesBox.style.display = themesBox.style.display==="flex"?"none":"flex"; };
+function updateThemeBtn(){ const dot=`<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${THEMES[themeIdx].wallR};border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:4px;"></span>`; $("btnTheme").innerHTML=`${dot}${THEMES[themeIdx].name}`; }
+$("btnTheme").onclick=()=>{ themeIdx=(themeIdx+1)%THEMES.length; renderBg(); updateThemeBtn(); save(); };
 $("btnClear").onclick=()=>{ if(confirm("确定要清空整个房间吗？")){ items=[]; selectedId=null; renderItems(); save(); } };
 
 /* ---------- 坐标换算 ---------- */
@@ -247,7 +248,6 @@ function attachGesture(el, item){
     e.stopPropagation();
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
     selectItem(item.id);
-    item.z=++zCounter; updateItemStyle(item);
     if(!gesture || gesture.id!==item.id) gesture={ id:item.id, pointers:new Map() };
     gesture.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
     baseline(item.id);
@@ -428,6 +428,6 @@ function loadFromManifest(){
 
 /* ---------- 启动 ---------- */
 loadSaved();
-renderBg(); renderThemes(); renderTabs(); renderPalette(); renderItems();
+renderBg(); updateThemeBtn(); renderTabs(); renderPalette(); renderItems();
 loadFromManifest();
 </script>
